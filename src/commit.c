@@ -76,6 +76,11 @@ MtmXactCallback(XactEvent event, void *arg)
 	 * Perform distributed commit only for transactions in ordinary backends
 	 * with multimaster enabled.
 	 */
+	// if (IsBackgroundWorker){
+	// 	mtm_log(LOG, "%s", MyBgworkerEntry->bgw_name);
+	// }
+
+
 	if (IsAnyAutoVacuumProcess() || !IsNormalProcessingMode() ||
 		am_walsender || (IsBackgroundWorker && !force_in_bgworker))
 	{

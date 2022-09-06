@@ -860,6 +860,7 @@ MtmReplicationTxnFilterHook(struct PGLogicalTxnFilterArgs *args)
 	bool		res = (args->origin_id == InvalidRepOriginId ||
 					   hooks_data->is_recovery);
 
+	//return true;
 	return res;
 }
 
