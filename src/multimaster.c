@@ -82,6 +82,7 @@ PG_FUNCTION_INFO_V1(mtm_hold_backends);
 PG_FUNCTION_INFO_V1(mtm_release_backends);
 PG_FUNCTION_INFO_V1(mtm_check_query);
 
+PG_FUNCTION_INFO_V1(mtm_init_longrange);
 PG_FUNCTION_INFO_V1(mtm_after_lrconn_create);
 
 #if 0
@@ -1211,6 +1212,41 @@ mtm_after_node_create(PG_FUNCTION_ARGS)
 }
 
 Datum
+mtm_init_longrange(PG_FUNCTION_ARGS)
+{
+	char	   *lrconninfo = text_to_cstring(PG_GETARG_TEXT_P(0));
+	int			rc;
+	int			n_lrconns;
+	StringInfoData local_query;
+
+	initStringInfo(&local_query);
+	appendStringInfoString(&local_query, "insert into " MTM_LONGRANGE " values ");
+	appendStringInfo(&local_query, "(%d, $$%s$$)",
+					 1, lrconninfo);
+
+	if (SPI_connect() != SPI_OK_CONNECT)
+		mtm_log(ERROR, "could not connect using SPI");
+
+	rc = SPI_execute("select * from " MTM_LONGRANGE, false, 0);
+	if (rc != SPI_OK_SELECT)
+		mtm_log(ERROR, "Failed to select from " MTM_LONGRANGE);
+	n_lrconns = SPI_processed;
+
+	if(n_lrconns == 0){
+		rc = SPI_execute(local_query.data, false, 0);
+		if (rc != SPI_OK_INSERT)
+			mtm_log(ERROR, "Failed to add lrconn to table");
+	}else{
+			mtm_log(LOG, "mtm_init_longrange failed: lrconn already exists");
+	}
+
+	if (SPI_finish() != SPI_OK_FINISH)
+		mtm_log(ERROR, "could not finish SPI");
+
+	PG_RETURN_VOID();
+}
+
+Datum
 mtm_after_lrconn_create(PG_FUNCTION_ARGS)
 {
 	TriggerData *trigdata = (TriggerData *) fcinfo->context;
@@ -1218,8 +1254,6 @@ mtm_after_lrconn_create(PG_FUNCTION_ARGS)
 	bool		node_id_isnull;
 	char	   *conninfo;
 	bool		conninfo_isnull;
-	int			n_nodes;
-	int			rc;
 
 	Assert(CALLED_AS_TRIGGER(fcinfo));
 	Assert(TRIGGER_FIRED_FOR_ROW(trigdata->tg_event));
@@ -1235,10 +1269,37 @@ mtm_after_lrconn_create(PG_FUNCTION_ARGS)
 														  Anum_mtm_longrange_connifo,
 														  RelationGetDescr(trigdata->tg_relation),
 														  &conninfo_isnull)));
-
-	Assert(!is_self_isnull);
+	Assert(!conninfo_isnull);
 
 	mtm_log(LOG, "LRTRIGGER: %s", conninfo);
+
+	CreateSubscriptionStmt *cs_stmt = makeNode(CreateSubscriptionStmt);
+	int			saved_client_min_messages = client_min_messages;
+	int			saved_log_min_messages = log_min_messages;
+
+
+	cs_stmt->subname = psprintf("mtm_lrsub_%d", node_id);
+	cs_stmt->conninfo = conninfo;
+	cs_stmt->publication = list_make1(makeString(MULTIMASTER_NAME));
+	cs_stmt->options = list_make4(
+								makeDefElem("slot_name", (Node *) makeString("none"), -1),
+								makeDefElem("create_slot", (Node *) makeString("false"), -1),
+								makeDefElem("connect", (Node *) makeString("false"), -1),
+								makeDefElem("enabled", (Node *) makeString("false"), -1)
+		);
+
+	/*
+	* suppress unnecessary and scary warning ('tables were not subscribed
+	* ..')
+	*/
+	client_min_messages = ERROR;
+	log_min_messages = ERROR;
+
+	CreateSubscription(cs_stmt, true);
+
+	/* restore log_level's */
+	client_min_messages = saved_client_min_messages;
+	log_min_messages = saved_log_min_messages;
 
 	PG_RETURN_VOID();
 }

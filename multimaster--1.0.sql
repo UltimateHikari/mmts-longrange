@@ -73,6 +73,11 @@ ALTER TABLE mtm.cluster_nodes ENABLE ALWAYS TRIGGER on_node_drop;
  * longrange extension intervention:
  */
 
+CREATE OR REPLACE FUNCTION mtm.init_longrange(my_conninfo text)
+RETURNS VOID
+AS 'MODULE_PATHNAME','mtm_init_longrange'
+LANGUAGE C;
+
 CREATE FUNCTION mtm.after_lrconn_create()
 RETURNS TRIGGER
 AS 'MODULE_PATHNAME','mtm_after_lrconn_create'
