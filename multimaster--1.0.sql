@@ -27,6 +27,16 @@ CREATE TABLE mtm.cluster_nodes(
     is_self bool not null
 );
 
+/* 
+ * longrange extension intervention:
+ * for ingress node of subscription to external multimaster cluster
+ */
+
+CREATE TABLE mtm.longrange_conninfo(
+    id int primary key not null,
+    conninfo text not null
+);
+
 /*
  * Nodes for which init (slot creation, etc) is done. This could be a bool
  * column in cluster_nodes, however this state is local per node, and
@@ -58,6 +68,21 @@ CREATE TRIGGER on_node_drop
     FOR EACH ROW
     EXECUTE FUNCTION mtm.after_node_drop();
 ALTER TABLE mtm.cluster_nodes ENABLE ALWAYS TRIGGER on_node_drop;
+
+/*
+ * longrange extension intervention:
+ */
+
+CREATE FUNCTION mtm.after_lrconn_create()
+RETURNS TRIGGER
+AS 'MODULE_PATHNAME','mtm_after_lrconn_create'
+LANGUAGE C;
+
+CREATE TRIGGER on_lrconn_create
+    AFTER INSERT ON mtm.longrange_conninfo
+    FOR EACH ROW
+    EXECUTE FUNCTION mtm.after_lrconn_create();
+ALTER TABLE mtm.longrange_conninfo ENABLE ALWAYS TRIGGER on_lrconn_create;
 
 /*
  * Remove syncpoints of node on its drop.

@@ -64,6 +64,13 @@ typedef uint64 nodemask_t;
 #define Anum_mtm_nodes_is_self		3	/* is that tuple for our node? */
 
 /*
+ * Definitions for "mtm.longrange_conninfo" table.
+ */
+#define MTM_LONGRANGE					"mtm.longrange_conninfo"
+#define Natts_mtm_longrange				3
+#define Anum_mtm_longrange_id			1	
+#define Anum_mtm_longrange_connifo		2	/* connection string */
+/*
  * Definitions for the "mtm.cluster_status" type.
  */
 #define Natts_mtm_status					7

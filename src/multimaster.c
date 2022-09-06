@@ -82,6 +82,8 @@ PG_FUNCTION_INFO_V1(mtm_hold_backends);
 PG_FUNCTION_INFO_V1(mtm_release_backends);
 PG_FUNCTION_INFO_V1(mtm_check_query);
 
+PG_FUNCTION_INFO_V1(mtm_after_lrconn_create);
+
 #if 0
 static size_t MtmGetTransactionStateSize(void);
 static void MtmSerializeTransactionState(void *ctx);
@@ -1133,7 +1135,7 @@ mtm_after_node_create(PG_FUNCTION_ARGS)
 	if (!check_config(node_id, n_nodes))
 		mtm_log(ERROR, "multimaster can't start with current configs");
 
-	mtm_log(NodeMgmt, "mtm_after_node_create %d", node_id);
+	mtm_log(NodeMgmt, "mtm_after_node_create %d: %s", node_id, conninfo);
 
 	if (is_self)
 	{
@@ -1204,6 +1206,39 @@ mtm_after_node_create(PG_FUNCTION_ARGS)
 		origin_name = psprintf(MULTIMASTER_SLOT_PATTERN, node_id);
 		replorigin_create(origin_name);
 	}
+
+	PG_RETURN_VOID();
+}
+
+Datum
+mtm_after_lrconn_create(PG_FUNCTION_ARGS)
+{
+	TriggerData *trigdata = (TriggerData *) fcinfo->context;
+	int			node_id;
+	bool		node_id_isnull;
+	char	   *conninfo;
+	bool		conninfo_isnull;
+	int			n_nodes;
+	int			rc;
+
+	Assert(CALLED_AS_TRIGGER(fcinfo));
+	Assert(TRIGGER_FIRED_FOR_ROW(trigdata->tg_event));
+	Assert(TRIGGER_FIRED_BY_INSERT(trigdata->tg_event));
+
+	node_id = DatumGetInt32(heap_getattr(trigdata->tg_trigtuple,
+										 Anum_mtm_longrange_id,
+										 RelationGetDescr(trigdata->tg_relation),
+										 &node_id_isnull));
+	Assert(!node_id_isnull);
+
+	conninfo = text_to_cstring(DatumGetTextP(heap_getattr(trigdata->tg_trigtuple,
+														  Anum_mtm_longrange_connifo,
+														  RelationGetDescr(trigdata->tg_relation),
+														  &conninfo_isnull)));
+
+	Assert(!is_self_isnull);
+
+	mtm_log(LOG, "LRTRIGGER: %s", conninfo);
 
 	PG_RETURN_VOID();
 }
