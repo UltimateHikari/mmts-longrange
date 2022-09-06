@@ -55,13 +55,13 @@ disable_client_timeouts(PGconn *conn)
 		return false;
 	}
 
-	res = PQexec(conn, "SET idle_session_timeout = 0");
-	if (PQresultStatus(res) != PGRES_COMMAND_OK)
-	{
-		mtm_log(WARNING, "failed to set idle_session_timeout: %s",
-				pchomp(PQerrorMessage(conn)));
-		return false;
-	}
+	// res = PQexec(conn, "SET idle_session_timeout = 0");
+	// if (PQresultStatus(res) != PGRES_COMMAND_OK)
+	// {
+	// 	mtm_log(WARNING, "failed to set idle_session_timeout: %s",
+	// 			pchomp(PQerrorMessage(conn)));
+	// 	return false;
+	// }
 
 	return true;
 }
@@ -84,8 +84,8 @@ MtmDisableTimeouts(void)
 		disable_timeout(LOCK_TIMEOUT, false);
 	if (get_timeout_active(IDLE_IN_TRANSACTION_SESSION_TIMEOUT))
 		disable_timeout(IDLE_IN_TRANSACTION_SESSION_TIMEOUT, false);
-	if (get_timeout_active(IDLE_SESSION_TIMEOUT))
-		disable_timeout(IDLE_SESSION_TIMEOUT, false);
+	// if (get_timeout_active(IDLE_SESSION_TIMEOUT))
+	// 	disable_timeout(IDLE_SESSION_TIMEOUT, false);
 }
 
 /*
