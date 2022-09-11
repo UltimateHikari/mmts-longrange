@@ -69,14 +69,20 @@ proc_change_cb(Datum arg, int cacheid, uint32 hashvalue)
 	MtmSetRemoteFunction(NULL, NULL);
 }
 
+static bool
+MtmIsLongrangeReceiver(void){
+	// logical replication worker for subscription       16812
+	char * name = MyBgworkerEntry->bgw_name;
+	//mtm_log(LOG, "Name:%c %c ", name[0], name[20]);
+	return (name[0] == 'l') && (name[20] == 'w');
+}
+
 void
 MtmLRXactCallback(XactEvent event, void *arg)
 {
-	if (IsBackgroundWorker){
+	if (IsBackgroundWorker && MtmIsLongrangeReceiver()){
 		mtm_log(LOG, "MtmLRXactCallback: %s", MyBgworkerEntry->bgw_name);
-		// if(MtmIsLongrangeReceiver()){
 		// 	MtmToggleReplication();
-		// }
 	}
 }
 

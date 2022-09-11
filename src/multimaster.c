@@ -445,7 +445,7 @@ MtmSharedShmemStartup()
 	}
 
 	RegisterXactCallback(MtmXactCallback, NULL);
-	
+
 	RegisterXactCallback(MtmLRXactCallback, NULL);
 
 	LWLockRelease(AddinShmemInitLock);
@@ -1255,11 +1255,16 @@ mtm_init_longrange(PG_FUNCTION_ARGS)
 Datum
 mtm_after_lrconn_create(PG_FUNCTION_ARGS)
 {
+	CreateSubscriptionStmt *cs_stmt = makeNode(CreateSubscriptionStmt);
 	TriggerData *trigdata = (TriggerData *) fcinfo->context;
 	int			node_id;
 	bool		node_id_isnull;
 	char	   *conninfo;
 	bool		conninfo_isnull;
+	int			saved_log_min_messages,
+				saved_client_min_messages;
+	int			self_id;
+	int rc;
 
 	Assert(CALLED_AS_TRIGGER(fcinfo));
 	Assert(TRIGGER_FIRED_FOR_ROW(trigdata->tg_event));
@@ -1279,34 +1284,65 @@ mtm_after_lrconn_create(PG_FUNCTION_ARGS)
 
 	mtm_log(LOG, "LRTRIGGER: %s", conninfo);
 
-	CreateSubscriptionStmt *cs_stmt = makeNode(CreateSubscriptionStmt);
-	int			saved_client_min_messages = client_min_messages;
-	int			saved_log_min_messages = log_min_messages;
+	/**
+	 * Get self_id
+	 *  Not assuring that we have only one record, temponary code btw
+	 */
+
+	if (SPI_connect() != SPI_OK_CONNECT)
+		mtm_log(ERROR, "could not connect using SPI");
+
+	rc = SPI_execute("select n.id from " MTM_NODES " n "
+					 "where n.is_self = 't'", false, 0);
+	if (rc < 0 || rc != SPI_OK_SELECT)
+		mtm_log(ERROR, "Failed to load saved nodes");
+
+	{
+		TupleDesc	tupdesc = SPI_tuptable->tupdesc;
+		HeapTuple	tup = SPI_tuptable->vals[0];
+		bool		isnull;
+
+		self_id = DatumGetInt32(SPI_getbinval(tup, tupdesc, Anum_mtm_nodes_id, &isnull));
+		Assert(!isnull);
+		Assert(TupleDescAttr(tupdesc, Anum_mtm_nodes_id - 1)->atttypid == INT4OID);
+	}
+
+	if (SPI_finish() != SPI_OK_FINISH)
+		mtm_log(ERROR, "could not finish SPI");
+
+	/**
+	 * Create LR sub if we are specified in table
+	 */
+
+	//self_id = 1;
+
+	if(node_id == self_id){
+
+		saved_client_min_messages = client_min_messages;
+		saved_log_min_messages = log_min_messages;
 
 
-	cs_stmt->subname = psprintf(MTM_LRSUBNAME_FMT, node_id);
-	cs_stmt->conninfo = conninfo;
-	cs_stmt->publication = list_make1(makeString(MULTIMASTER_NAME));
-	cs_stmt->options = list_make4(
-								makeDefElem("slot_name", (Node *) makeString("none"), -1),
-								makeDefElem("create_slot", (Node *) makeString("false"), -1),
-								makeDefElem("connect", (Node *) makeString("false"), -1),
-								makeDefElem("enabled", (Node *) makeString("false"), -1)
-		);
+		cs_stmt->subname = psprintf(MTM_LRSUBNAME_FMT, node_id);
+		cs_stmt->conninfo = conninfo;
+		cs_stmt->publication = list_make1(makeString("testpub"));
+		cs_stmt->options = list_make3(
+									makeDefElem("slot_name", (Node *) makeString("testpubslot"), -1),
+									makeDefElem("create_slot", (Node *) makeString("false"), -1),
+									makeDefElem("copy_data", (Node *) makeString("false"), -1)
+			);
 
-	/*
-	* suppress unnecessary and scary warning ('tables were not subscribed
-	* ..')
-	*/
-	client_min_messages = ERROR;
-	log_min_messages = ERROR;
+		client_min_messages = ERROR;
+		log_min_messages = ERROR;
 
-	CreateSubscription(cs_stmt, true);
+		CreateSubscription(cs_stmt, true);
+		mtm_log(LOG, "LRTRIGGER: created %s", conninfo);
 
-	/* restore log_level's */
-	client_min_messages = saved_client_min_messages;
-	log_min_messages = saved_log_min_messages;
 
+		/* restore log_level's */
+		client_min_messages = saved_client_min_messages;
+		log_min_messages = saved_log_min_messages;
+		
+	}
 	PG_RETURN_VOID();
 }
 
