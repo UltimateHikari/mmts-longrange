@@ -32,6 +32,7 @@ extern TransactionId MtmGidParseXid(const char *gid);
 
 extern bool MtmTwoPhaseCommit(void);
 extern void MtmBeginTransaction(void);
+extern void MtmLRXactCallback(XactEvent event, void *arg);
 extern void MtmXactCallback(XactEvent event, void *arg);
 
 extern bool MtmExplicitPrepare(char *gid);

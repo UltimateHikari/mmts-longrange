@@ -28,6 +28,7 @@
 #define MULTIMASTER_SLOT_PATTERN         "mtm_slot_%d"
 /*  XXX: change to one NODENAME_FMT */
 #define MTM_SUBNAME_FMT					 "mtm_sub_%d"
+#define MTM_LRSUBNAME_FMT				 "mtm_lrsub_%d"
 #define MTM_DMQNAME_FMT					 "node%d"
 #define MULTIMASTER_FILTER_SLOT_PATTERN  "mtm_filter_slot_%d"
 #define MULTIMASTER_LOCAL_TABLES_TABLE   "local_tables"

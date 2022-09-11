@@ -445,6 +445,8 @@ MtmSharedShmemStartup()
 	}
 
 	RegisterXactCallback(MtmXactCallback, NULL);
+	
+	RegisterXactCallback(MtmLRXactCallback, NULL);
 
 	LWLockRelease(AddinShmemInitLock);
 }
@@ -1243,6 +1245,10 @@ mtm_init_longrange(PG_FUNCTION_ARGS)
 	if (SPI_finish() != SPI_OK_FINISH)
 		mtm_log(ERROR, "could not finish SPI");
 
+	// RegisterXactCallback(MtmLRXactCallback, NULL);
+
+	// mtm_log(LOG, "LRCallback registered");
+
 	PG_RETURN_VOID();
 }
 
@@ -1278,7 +1284,7 @@ mtm_after_lrconn_create(PG_FUNCTION_ARGS)
 	int			saved_log_min_messages = log_min_messages;
 
 
-	cs_stmt->subname = psprintf("mtm_lrsub_%d", node_id);
+	cs_stmt->subname = psprintf(MTM_LRSUBNAME_FMT, node_id);
 	cs_stmt->conninfo = conninfo;
 	cs_stmt->publication = list_make1(makeString(MULTIMASTER_NAME));
 	cs_stmt->options = list_make4(
